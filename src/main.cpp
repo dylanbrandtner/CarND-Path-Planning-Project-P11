@@ -8,6 +8,8 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
+#include "vehicle.h"
+#include "spline.h"
 
 using namespace std;
 
@@ -163,6 +165,50 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 
 }
 
+// Dylan: Initialize constants
+#define NUM_POINTS  50
+#define SPEED_CONVERSION 2.237
+#define SPEED_LIMIT  50 / SPEED_CONVERSION
+#define SPEED_TARGET 49 / SPEED_CONVERSION
+#define DEFAULT_LANE 1
+#define TARGET_ACCEL 1.5
+#define NUM_LANES 3
+#define HORIZON 30.0
+
+int translate_lane_to_d_val(int lane)
+{
+    if ((lane < 0) || (lane > (NUM_LANES-1)))
+    {
+        std::cout << "Unexpected lane value: " << lane << std::endl;
+        return -1;
+    }
+        
+    return 2+4*lane;
+}
+
+int translate_d_val_to_lane(int d)
+{
+    if (d >= 8)
+    {
+        return 2;
+    }
+    else if (d >= 4 && d < 8)
+    {
+        return 1;
+    }
+    else if (d < 4)
+    {
+        return 0;
+    }
+    else
+    {
+        std::cout << "Unexpected D value: " << d << std::endl;
+        return -1;
+    }
+}
+
+
+
 int main() {
   uWS::Hub h;
 
@@ -181,6 +227,19 @@ int main() {
   ifstream in_map_(map_file_.c_str(), ifstream::in);
 
   string line;
+  
+  // Dylan: Init ego car, and targets 
+  Vehicle ego_car; 
+  ego_car.target_speed = SPEED_TARGET;
+  ego_car.lanes_available = NUM_LANES;
+  ego_car.goal_s = HORIZON;
+  ego_car.goal_lane = DEFAULT_LANE;
+  ego_car.target_acceleration = TARGET_ACCEL;
+  ego_car.state = "KL"; //constant speed 
+  ego_car.a = 0;
+  ego_car.horizon = HORIZON;
+
+  
   while (getline(in_map_, line)) {
   	istringstream iss(line);
   	double x;
@@ -200,7 +259,7 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&ego_car](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -226,6 +285,13 @@ int main() {
           	double car_d = j[1]["d"];
           	double car_yaw = j[1]["yaw"];
           	double car_speed = j[1]["speed"];
+            
+            // Dylan: Update ego
+            ego_car.goal_s = car_s + HORIZON;
+            ego_car.s = car_s;
+            ego_car.v = car_speed / SPEED_CONVERSION; // convert to m/s
+            ego_car.lane = translate_d_val_to_lane(car_d);
+           
 
           	// Previous path data given to the Planner
           	auto previous_path_x = j[1]["previous_path_x"];
@@ -238,14 +304,202 @@ int main() {
           	auto sensor_fusion = j[1]["sensor_fusion"];
 
           	json msgJson;
+            
+            // Generate pred data
+            map<int, vector<Vehicle>> predictions = {};
+            for (int i = 0; i < sensor_fusion.size(); i++)
+            {     
+                //gather data
+                int id = sensor_fusion[i][0];
+                double vx = sensor_fusion[i][3];
+                double vy = sensor_fusion[i][4];
+                double v_vel = sqrt(vx*vx + vy*vy);
+                double v_s = sensor_fusion[i][5];
+                int v_lane = translate_d_val_to_lane(sensor_fusion[i][6]);
+                
+                // construct vehicle
+                Vehicle v(v_lane, v_s, v_vel,0, "KL", 2);  // assume 0 acceleration and keep lane behavior
+                
+                // Generate predictions
+                predictions.insert(std::pair<int,vector<Vehicle>>(id,v.generate_predictions()));
+            }
 
-          	vector<double> next_x_vals;
-          	vector<double> next_y_vals;
+            
+            // Dylan: --------Behavior planner start------------
+             
+            // Determine trajectory
+            
+            vector<Vehicle> trajectory = ego_car.generate_trajectory("KL",predictions);
 
+            // Generate point path
+            vector<double> ptsx;
+            vector<double> ptsy;
+            int prev_size = previous_path_x.size();
+            
+            // Use some previous waypoints for smoothing
+            vector<double> prev_wp1 = getXY(car_s-HORIZON,car_d,map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> prev_wp2 = getXY(car_s-HORIZON*2,car_d,map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
-          	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+            ptsx.push_back(prev_wp1[0]);
+            ptsx.push_back(prev_wp2[0]);
+            
+            ptsy.push_back(prev_wp1[1]);
+            ptsy.push_back(prev_wp2[1]);
+            
+            // Setup initial points
+            double ref_x = car_x;
+            double ref_y = car_y;
+            double ref_yaw = deg2rad(car_yaw);
+            
+            if (prev_size < 2)
+            {
+                double prev_car_x = car_x - cos(car_yaw);
+                double prev_car_y = car_y - sin(car_yaw);
+                
+                ptsx.push_back(prev_car_x);
+                ptsx.push_back(car_x);
+                
+                ptsy.push_back(prev_car_y);
+                ptsy.push_back(car_y);
+            }
+            else
+            {
+                ref_x = previous_path_x[prev_size - 1];
+                ref_y = previous_path_y[prev_size - 1];
+                
+                double ref_x_prev = previous_path_x[prev_size - 2];
+                double ref_y_prev = previous_path_y[prev_size - 2];
+                ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
+                
+                ptsx.push_back(ref_x_prev);
+                ptsy.push_back(ref_y_prev);
+                
+                // Avoid cases where we stood still (first val)
+                if (ref_x > ref_x_prev)
+                {
+                    ptsx.push_back(ref_x);
+                    ptsy.push_back(ref_y);
+                }
+            }
+            
+            int end_lane = translate_lane_to_d_val(trajectory[1].lane);
+            
+            // Add horizon points
+            vector<double> next_wp0 = getXY(car_s+HORIZON,end_lane,map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp1 = getXY(car_s+HORIZON*2,end_lane,map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp2 = getXY(car_s+HORIZON*3,end_lane,map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            
+            ptsx.push_back(next_wp0[0]);
+            ptsx.push_back(next_wp1[0]);
+            ptsx.push_back(next_wp2[0]);
+            
+            ptsy.push_back(next_wp0[1]);
+            ptsy.push_back(next_wp1[1]);
+            ptsy.push_back(next_wp2[1]);
+                       
+            // Shift to cars perspective
+            for (int i = 0; i < ptsx.size(); i++)
+            {
+                double shift_x = ptsx[i]-ref_x;
+                double shift_y = ptsy[i]-ref_y;
+                
+                ptsx[i] = (shift_x * cos(-ref_yaw) - shift_y*sin(-ref_yaw));
+                ptsy[i] = (shift_x * sin(-ref_yaw) + shift_y*cos(-ref_yaw));
+            }
+            
+            // Sort in case of out of order
+            // Bubble sort should be fine since list is only 5 long
+            for (int i = 0; i < ptsx.size()-1; i++)
+            {
+               for (int j = 0; j < ptsx.size()-i-1; j++)  
+                   if (ptsx[j] > ptsx[j+1])
+                   {
+                      double tempx = ptsx[j];
+                      double tempy = ptsy[j];
+                      ptsx[j] = ptsx[j+1];
+                      ptsy[j] = ptsy[j+1];
+                      ptsx[j+1] = tempx;
+                      ptsy[j+1] = tempy;
+                   }
+            }
+           
+            // Spline
+            tk::spline s;
+            s.set_points(ptsx,ptsy);
+            
+            vector<double> next_x_vals;
+            vector<double> next_y_vals;
+            
+            // Start with points from last time
+            for (int i = 0; i < prev_size; i++)
+            {
+                next_x_vals.push_back(previous_path_x[i]);
+                next_y_vals.push_back(previous_path_y[i]);
+            }
+            
+            vector<double> target_xy = getXY(trajectory[1].s,end_lane,map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            
+            double target_x = target_xy[0];
+            double target_y = s(target_x);
+            double target_dist = sqrt(target_x*target_x + target_y*target_y);
+            
+            double x_add_on = 0;
+            
+            for (int i = 1; i <= NUM_POINTS-prev_size; i++)
+            {
+                double N = (target_dist/(.02*trajectory[1].v));
+                double x_point = x_add_on + target_x/N;
+                double y_point = s(x_point);
+                
+                x_add_on = x_point;
+                
+                double x_ref = x_point;
+                double y_ref = y_point;
+                
+                // rotate back to normal 
+                x_point = (x_ref* cos(ref_yaw) - y_ref*sin(ref_yaw));
+                y_point = (x_ref* sin(ref_yaw) + y_ref*cos(ref_yaw));
+            
+                x_point += ref_x;
+                y_point += ref_y;
+                
+                next_x_vals.push_back(x_point);
+                next_y_vals.push_back(y_point);
+            }
+            
+            /* Debug 
+            for (int i = 0; i < next_x_vals.size(); i++)
+            {
+                std::cout << "next_x_vals" << i << " : " << next_x_vals[i] << std::endl;
+            }  
+            std::cout << "------------------------  " << std::endl;  
+              */  
+            
+            
+            // Debugging
+            /*
+            vector<double> next_x_vals_2;
+            vector<double> next_y_vals_2;
+            double dist_per_pt = 22 / NUM_POINTS;
+            for (int i = 0; i < NUM_POINTS; i++)
+            {
+                auto x_y = getXY(car_s + (.44*i),6, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+                next_x_vals_2.push_back(x_y[0]);
+                next_y_vals_2.push_back(x_y[1]);
+            }
+            
+            for (int i = 0; i < NUM_POINTS; i+=25)
+            {
+                std::cout << "X1: " << next_x_vals[i] << ", X2: " << next_x_vals_2[i] << std::endl;
+            }
+            std::cout << "----------------------------------------------" << std::endl;
+            */
+
+            // Dylan: --------Behavior planner end------------
+            
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
+
 
           	auto msg = "42[\"control\","+ msgJson.dump()+"]";
 

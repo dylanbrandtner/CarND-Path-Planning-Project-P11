@@ -28,10 +28,6 @@ Vehicle::Vehicle(int lane, double s, double v, double a, string state, double ho
 
 vector<Vehicle> Vehicle::choose_next_state(map<int, vector<Vehicle>> predictions) {
     /*
-    Here you can implement the transition_function code from the Behavior Planning Pseudocode
-    classroom concept. Your goal will be to return the best (lowest cost) trajectory corresponding
-    to the next state.
-
     INPUT: A predictions map. This is a map of vehicle id keys with predicted
         vehicle trajectories as values. Trajectories are a vector of Vehicle objects representing
         the vehicle at the current timestep and one timestep in the future.
@@ -43,6 +39,7 @@ vector<Vehicle> Vehicle::choose_next_state(map<int, vector<Vehicle>> predictions
     vector<double> costs;
     vector<vector<Vehicle>> final_trajectories;
 
+    //std::cout << "curr state: " << this->state << std::endl;
     for (vector<string>::iterator it = states.begin(); it != states.end(); ++it) {
         vector<Vehicle> trajectory = generate_trajectory(*it, predictions);
         if (trajectory.size() != 0) {
@@ -52,6 +49,7 @@ vector<Vehicle> Vehicle::choose_next_state(map<int, vector<Vehicle>> predictions
             //std::cout << "state: " << *it << " cost: " << cost << std::endl;
         }
     }
+    //std::cout << "=========================" << std::endl;
 
     vector<double>::iterator best_cost = min_element(begin(costs), end(costs));
     int best_idx = distance(begin(costs), best_cost);
@@ -61,25 +59,29 @@ vector<Vehicle> Vehicle::choose_next_state(map<int, vector<Vehicle>> predictions
 vector<string> Vehicle::successor_states() {
     /*
     Provides the possible next states given the current state for the FSM 
-    discussed in the course, with the exception that lane changes happen 
-    instantaneously, so LCL and LCR can only transition back to KL.
     */
     vector<string> states;
     states.push_back("KL");
     string state = this->state;
-    if(state.compare("KL") == 0) {
+    if(state.compare("KL") == 0) 
+    {
+        if (lane != 0)
+        {            
+            states.push_back("PLCL");
+        } 
         if (lane != lanes_available - 1)
         {
             states.push_back("PLCR");
         }
-        else if (lane != 0)
-        {            
-            states.push_back("PLCL");
-        }        
-    } else if (state.compare("PLCL") == 0) {
+       
+    } 
+    else if (state.compare("PLCL") == 0) 
+    {
             states.push_back("PLCL");
             states.push_back("LCL");
-    } else if (state.compare("PLCR") == 0) {
+    } 
+    else if (state.compare("PLCR") == 0) 
+    {
             states.push_back("PLCR");
             states.push_back("LCR");
     }
@@ -125,23 +127,16 @@ vector<double> Vehicle::get_kinematics(map<int, vector<Vehicle>> predictions, in
     }*/
     
     
-    //  Collision avoidance
     if(get_vehicle_ahead(predictions, lane, vehicle_ahead)) 
     {
         //std::cout << "Car detected ahead s,v = " << vehicle_ahead.s - this->s << "," << vehicle_ahead.v << std::endl;
-        if ((this->s + this->danger_buffer) > vehicle_ahead.s)
+
+        double max_velocity_in_front = (vehicle_ahead.s - this->s - this->buffer) + vehicle_ahead.v - 0.5 * (this->a);
+        if (max_velocity_in_front < this->target_speed)
         {
-            std::cout << "Collision Imminent! Activating emergency braking!" << std::endl;
-            new_velocity = vehicle_ahead.v - 5; // ignore limits, set to vehicle in front speed - 5 to be safe
+            new_velocity = vehicle_ahead.v;
         }
-        else 
-        {
-            double max_velocity_in_front = (vehicle_ahead.s - this->s - this->buffer) + vehicle_ahead.v - 0.5 * (this->a);
-            if (max_velocity_in_front < this->target_speed)
-            {
-                new_velocity = vehicle_ahead.v;
-            }
-        }
+
     } 
     //std::cout << "Velocity = " << new_velocity << std::endl;
     
@@ -175,7 +170,7 @@ vector<Vehicle> Vehicle::prep_lane_change_trajectory(string state, map<int, vect
     vector<Vehicle> trajectory = {Vehicle(this->lane, this->s, this->v, this->a, this->state)};
     vector<double> curr_lane_new_kinematics = get_kinematics(predictions, this->lane);
 
-/*
+   /* Didn't end up being useful...
     vector<double> best_kinematics;
     vector<double> next_lane_new_kinematics = get_kinematics(predictions, new_lane);
     //Choose kinematics with lowest velocity.

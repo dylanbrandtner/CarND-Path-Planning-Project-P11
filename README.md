@@ -2,11 +2,13 @@
 
 [//]: # (Image References)
 [image1]: ./doc/best_nav.gif  "Final Nav"
-[image2]: ./doc/double.gif  "double"
+[image2]: ./doc/full_nav3x.gif  "3x"
+
+
+## Project Introduction
+In this project, I implemented a path planner in C++ to navigate through traffic around a 6946m highway loop. The planner takes in current trajectory information (ex. position, speed, yaw) and "sensor fusion" data, which is the same trajectory information for surrounding cars.  It then determines the best trajectory based on the current and predicted states of all cars by using a cost function, which is tuned to avoid accidents and travel at the maximum safe speed.  It then generates a smooth trajectory using an open source [spline implementation](http://kluge.in-chemnitz.de/opensource/spline/).  In the project simulator, the result looks like this (at 2x speed due to gif size limitations):
 
 ![alt text][image1]
-
-
 
 
 ![alt text][image2]

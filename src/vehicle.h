@@ -14,7 +14,9 @@ public:
   map<string, int> lane_direction = {{"PLCL", -1}, {"LCL", -1}, {"LCR", 1}, {"PLCR", 1}};
 
   double buffer; // impacts "keep lane" behavior.
-  double danger_buffer = 8; // collision avoidance
+  double danger_buffer = 10; // collision avoidance
+  int lane_change_cooldown_orig;
+  int lane_change_cooldown;
 
   int lane;
 
@@ -27,8 +29,6 @@ public:
   double target_speed;
 
   int lanes_available;
-
-  int goal_lane;
 
   double goal_s;
 
@@ -55,7 +55,7 @@ public:
 
   vector<double> get_kinematics(map<int, vector<Vehicle>> predictions, int lane);
 
-  vector<Vehicle> keep_lane_trajectory(map<int, vector<Vehicle>> predictions);
+  vector<Vehicle> keep_lane_trajectory(string state, map<int, vector<Vehicle>> predictions);
 
   vector<Vehicle> lane_change_trajectory(string state, map<int, vector<Vehicle>> predictions);
 

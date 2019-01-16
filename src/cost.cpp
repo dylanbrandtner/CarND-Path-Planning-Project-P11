@@ -8,7 +8,7 @@
 const double LANE_CHANGE = pow(10, 4);
 const double EFFICIENCY = pow(10, 5);
 const double CONGESTION_COST = pow(10,5);
-const double DANGER_COST = pow(10,7);
+const double DANGER_COST = pow(10,8);
 
 double lane_change_cost(const Vehicle & vehicle, const vector<Vehicle> & trajectory, const map<int, vector<Vehicle>> & predictions, map<string, double> & data) {
     /*
@@ -98,17 +98,19 @@ double lane_danger(const Vehicle & vehicle, const map<int, vector<Vehicle>> & pr
     Amount of vehicles in danger buffer
     */
     double danger_val = 0;
+    double ego_s = 0;
     //std::cout << "vehicle.s: " << vehicle.s << std::endl;
     for (map<int, vector<Vehicle>>::const_iterator it = predictions.begin(); it != predictions.end(); ++it) {
         for (int i=0;i < it->second.size();i++)
         {
             Vehicle veh = it->second[i];
+            ego_s = vehicle.s + vehicle.v*i + vehicle.a*i*i/2.0;
             //std::cout << "veh.lane: " << veh.lane << " veh.s: " << veh.s << " veh.v: " << veh.v << std::endl;
             if (veh.lane == lane) {
-                if (fabs(veh.s - vehicle.s) < vehicle.danger_buffer) 
+                if (fabs(veh.s - ego_s) < vehicle.danger_buffer) 
                 {
                     //std::cout << "vehicle found in danger buffer for lane " << lane << ", vehicle.s: " << vehicle.s << " veh.s: " << veh.s << std::endl;
-                    danger_val++; // +1 for each car in buffer
+                    danger_val+= (vehicle.danger_buffer - fabs(veh.s - ego_s)); // add based on distance
                 }
             }
         }

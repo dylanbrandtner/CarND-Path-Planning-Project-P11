@@ -171,13 +171,14 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 #define SPEED_LIMIT  50 / SPEED_CONVERSION
 #define SPEED_TARGET 47 / SPEED_CONVERSION
 #define DEFAULT_LANE 1
-#define TARGET_ACCEL 6.0
+#define TARGET_ACCEL 5.0
 #define MAX_ACCEL 8.0
 #define NUM_LANES 3
 #define HORIZON 45.0
 #define EGO_CAR_GOAL 6945.554
 #define TIME_PER_POINT .02
-#define BUFFER 15.0
+#define BUFFER 25.0
+#define LANE_CHANGE_COOLDOWN 50
 
 // Dylan: D val to Lane val translation functions
 int translate_lane_to_d_val(int lane)
@@ -238,11 +239,11 @@ int main() {
   ego_car.target_speed = SPEED_TARGET;
   ego_car.lanes_available = NUM_LANES;
   ego_car.goal_s = EGO_CAR_GOAL;
-  ego_car.goal_lane = DEFAULT_LANE;
   ego_car.state = "KL"; 
   ego_car.a = 0;
-  ego_car.lane = 1;
+  ego_car.lane = DEFAULT_LANE;
   ego_car.buffer = BUFFER;
+  ego_car.lane_change_cooldown = LANE_CHANGE_COOLDOWN;
   
   while (getline(in_map_, line)) {
   	istringstream iss(line);
@@ -383,9 +384,11 @@ int main() {
             
             
             // Dylan: Update ego
-            ego_car.s = ref_s;
-            ego_car.v = ref_v; 
+            ego_car.s = car_s;
+            ego_car.v = car_speed / SPEED_CONVERSION; 
             //ego_car.a = ref_a;
+            
+            //std::cout << "state=" <<  ego_car.state << " lane=" <<  ego_car.lane << std::endl;
             
             // Trajectory generation
             vector<Vehicle> trajectory = ego_car.choose_next_state(predictions);
@@ -487,6 +490,7 @@ int main() {
 
             ego_car.state = trajectory[1].state;
             ego_car.lane = trajectory[1].lane;
+            ego_car.a = trajectory[1].a;
             
             /* Debug  
             for (int i = 0; i < next_x_vals.size(); i++)

@@ -2,7 +2,7 @@
 
 [//]: # (Image References)
 [image1]: ./doc/full_nav3x.gif  "3x"
-[image2]: ./doc/FSM.png "FSM"
+[image2]: ./doc/FSM.PNG "FSM"
 
 ## Project Introduction
 In this project, I implemented a path planner in C++ to navigate through traffic around a 6946m highway loop. The planner takes in current trajectory information (ex. position, speed, yaw) and "sensor fusion" data, which is the same trajectory information for surrounding cars.  It then determines the best trajectory based on the current and predicted states of all cars by using a cost function, which is tuned to avoid accidents and travel at the maximum safe speed.  It then generates a smooth trajectory using an open source [spline implementation](http://kluge.in-chemnitz.de/opensource/spline/).  In the project simulator, the result looks like this (video is at 3x speed due to gif size limitations):
@@ -32,10 +32,10 @@ The Vehicle class uses the cost functions in `cost.cpp` to determine when/if it 
 
 | Cost            | Weight | Description |
 |:---------------:|:-------:|:--------------------------------------------------------------:|
-| Lane Change     |  10&#x00B4 | If lane is different than current lane, cost is 1, otherwise 0 |
-| Efficiency      |  10&#x00B5 | Difference between lane speed and target speed                 |
-| Lane Congestion |  10&#x00B5 | Amount of vehicles within twice the vehicle "buffer" (25m)     |
-| Lane Danger     |  10&#x00B8 | How close we are to vehicles within "danger buffer" (10m)      |
+| Lane Change     |  10^4 | If lane is different than current lane, cost is 1, otherwise 0 |
+| Efficiency      |  10^5 | Difference between lane speed and target speed                 |
+| Lane Congestion |  10^5 | Amount of vehicles within twice the vehicle "buffer" (25m)     |
+| Lane Danger     |  10^8 | How close we are to vehicles within "danger buffer" (10m)      |
 
 Once a state is chosen, it helps us determine the desired lane, and desired speed.  The desired speed is either the target speed (which is set to 47mph to avoid exceeding the speed limit), or the speed that will cause us to keep the desired "buffer" (25m) from the car ahead in that lane. The desired lane and speed is sent to the trajectory generation.  
 

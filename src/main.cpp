@@ -264,7 +264,7 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&ego_car](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&ego_car,&max_s](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -316,6 +316,16 @@ int main() {
                 double v_vel = sqrt(vx*vx + vy*vy);
                 double v_s = sensor_fusion[i][5];
                 int v_lane = translate_d_val_to_lane(sensor_fusion[i][6]);
+                
+                // Correct for cars s vals at wrap point
+                if (car_s > v_s && (car_s - v_s) > 6000)
+                {
+                    v_s += max_s;
+                }
+                else if (car_s < v_s && (v_s - car_s) > 6000)
+                {
+                    v_s -= max_s;
+                }
                 
                 // construct vehicle
                 Vehicle v(v_lane, v_s, v_vel,0, "KL", 2);  // assume 0 acceleration and keep lane behavior

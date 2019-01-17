@@ -161,7 +161,7 @@ vector<double> Vehicle::get_kinematics(map<int, vector<Vehicle>> predictions, in
             double max_velocity_in_front = (vehicle_ahead.s - this->s - this->buffer) + vehicle_ahead.v - 0.5 * (this->a);
             if (max_velocity_in_front < this->target_speed)
             {
-                new_velocity = vehicle_ahead.v;
+                new_velocity = max_velocity_in_front;
             }
         }
 

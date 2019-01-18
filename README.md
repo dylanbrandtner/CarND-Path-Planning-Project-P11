@@ -1,9 +1,6 @@
 #  Path Planning Project
 
 [//]: # (Image References)
-[image1]: ./doc/full_nav3x.gif  "3x"
-[image2]: ./doc/FSM.PNG "FSM"
-[image3]: ./doc/best.PNG "best"
 [image4]: ./doc/target_speed.gif "target"
 [image5]: ./doc/change_lanes.gif "init accel"
 [image6]: ./doc/initial_accel.gif "init accel"
@@ -32,11 +29,11 @@ The green line represents the current planned trajectory for the car sent from t
 Using my final planning logic, I was able to travel over 62 miles without incident.
 
 ### Goals
-In this project your goal is to safely navigate around a virtual highway with other traffic that is driving +-10 MPH of the 50 MPH speed limit. You will be provided the car's localization and sensor fusion data, there is also a sparse map list of waypoints around the highway. The car should try to go as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible, note that other cars will try to change lanes too. The car should avoid hitting other cars at all cost as well as driving inside of the marked road lanes at all times, unless going from one lane to another. The car should be able to make one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Also the car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 10 m/s^3.
+In this project the goal is to safely navigate around a virtual highway with other traffic that is driving +-10 MPH of the 50 MPH speed limit. You will be provided the car's localization and sensor fusion data, there is also a sparse map list of waypoints around the highway. The car should try to go as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible, note that other cars will try to change lanes too. The car should avoid hitting other cars at all cost as well as driving inside of the marked road lanes at all times, unless going from one lane to another. The car should be able to make one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Also the car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 10 m/s^3.
 
 ## Implementation
 
-Below I will walk through how I met each rubric requirement, but first, I will describe my overall solution in 3 parts: Prediction, Planning, and Trajectory Generation.
+Later I will walk through how I met each rubric requirement, but first, I will describe my overall solution in 3 parts: Prediction, Planning, and Trajectory Generation.
 
 ### Prediction
 
@@ -46,7 +43,9 @@ On a highway, vehicle prediction can be vastly simplified if one basic assumptio
 
 The behavior planning logic is mostly contained in the `Vehicle` class (implemented in `vehicle.h\cpp`) and it's interaction with the cost functions in `cost.cpp`.  The initial logic\structure here was copied from the behavior planning lesson materials, and then significantly modified to fit this project.  The `Vehicle` class contains the state of the vehicle, it's current kinematics (position, speed, acceleration) and functions to update the state and kinematics based on it's current lane.  It also maintains a "Finite State Machine" with the following states: 
 
-![alt text][image2]
+<p align="center">
+  <img src="./doc/FSM.PNG" >
+</p>
 
 The Vehicle class uses the cost functions in `cost.cpp` to determine when/if it should move to another state.  There are 4 costs considered:
 
@@ -108,7 +107,9 @@ You can download the Term3 Simulator which contains the Path Planning Project fr
 
 This was easily achieved early on, but I wanted to see how far I could get. After all the tweaks I made (which will be described in more detail below), my longest run was was 62.49 miles:
 
-![alt text][image3]  
+<p align="center">
+  <img src="./doc/best.PNG" >
+</p> 
 
 #### The car drives according to the speed limit
 

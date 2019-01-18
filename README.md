@@ -1,22 +1,5 @@
 #  Path Planning Project
 
-[//]: # (Image References)
-[image4]: ./doc/target_speed.gif "target"
-[image5]: ./doc/change_lanes.gif "init accel"
-[image6]: ./doc/initial_accel.gif "init accel"
-[image7]: ./doc/double.gif "double"
-[image8]: ./doc/no_double.gif "no double"
-[image9]: ./doc/max_acc.gif "max acc"
-[image10]: ./doc/max_acc2.gif "max acc2"
-[image11]: ./doc/1hr.png "1hr"
-[image12]: ./doc/1hr_before_tweaks.png "1hr b4"
-[image13]: ./doc/wrap_collision.gif "wrap collision"
-[image14]: ./doc/lane_collision.gif "lane collision"
-[image15]: ./doc/lane_collision_2.gif "lane collision 2"
-[image16]: ./doc/lane_collision_3.gif "lane collision 3"
-[image17]: ./doc/lane_collision_4.gif "lane collision 4"
-[image18]: ./doc/lane_blocked.gif "lane blocked"
-
 ## Project Introduction
 In this project, I implemented a path planner in C++ to navigate through traffic around a 6946m highway loop. The planner takes in current trajectory information (ex. position, speed, yaw) and "sensor fusion" data, which is the same trajectory information for surrounding cars.  It then determines the best trajectory based on the current and predicted states of all cars by using a cost function, which is tuned to avoid accidents and travel at the maximum safe speed.  It then generates a smooth trajectory for my car (aka. the "ego" car) using an open source [spline implementation](http://kluge.in-chemnitz.de/opensource/spline/).  In the project simulator, the result looks like this (video is at 3x speed due to gif size limitations):
 
@@ -56,7 +39,7 @@ The Vehicle class uses the cost functions in `cost.cpp` to determine when/if it 
 | Lane Congestion |  10^5 | Amount of vehicles within twice the vehicle "buffer" (30m)     |
 | Lane Danger     |  10^8 | How close we are to vehicles within "danger buffer" (10m)      |
 
-Once a state is chosen, it helps us determine the desired lane, and desired speed.  The desired speed is either the target speed (which is set to 47mph to avoid exceeding the speed limit), or the speed that will cause us to keep the desired "buffer" (25m) from the car ahead in that lane. The desired lane and speed is sent to the trajectory generation.  
+Once a state is chosen, the planner uses this determine the desired lane, and desired speed.  The desired speed is either the target speed (which is set to 47mph to avoid exceeding the speed limit), or the speed that will cause us to keep the desired "buffer" (25m) from the car ahead in that lane. The desired lane and speed is sent to the trajectory generation.  
 
 ### Trajectory generation
 
@@ -115,7 +98,9 @@ This was easily achieved early on, but I wanted to see how far I could get. Afte
 
 I set my initial target speed to 49mph, but occasional latency in adjusting the acceleration sometimes caused the car to go beyond the speed limit.  Thus, I adjust the target speed back down to 47 mph to avoid ever exceeding the 50mph limit: 
 
-![alt text][image4]
+<p align="center">
+  <img src="./doc/target_speed.gif" >
+</p> 
 
 #### The car stays in its lane, except for the time between changing lanes
 
@@ -129,19 +114,27 @@ This was achieved during trajectory generation by setting the "horizon" waypoint
 
 This caused the lane change to occur before the first horizon point. 
 
-![alt text][image5] 
+<p align="center">
+  <img src="./doc/change_lanes.gif" >
+</p> 
 
 By tuning the "cost" value of the efficiency metric (i.e. the difference between the current lane speed and the target lane speed), I was able to remain at the target speed most times.  This can be seen from the following screenshot, captured after 1 hour using my final parameters:
 
-![alt text][image11]
+<p align="center">
+  <img src="./doc/1hr.png" >
+</p>
 
 As you can see, the average speed over that hour was just over 43 mph.  Before some of my final tweaks to increase overall safety (will be discussed in the "Car does not have collisions" section), my average speed over 1 hour was about 45.5 mph:
 
-![alt text][image12]
+<p align="center">
+  <img src="./doc/1hr_before_tweaks.png" >
+</p>
 
 Another way I could have improved the overall efficiency is by allowing the cost functions to examine lanes that are not directly adjacent.  Take, for example, the following clip:
 
-![alt text][image18]
+<p align="center">
+  <img src="./doc/lane_blocked.gif" >
+</p>
 
 As you can see, my vehicle does not change lanes because there is a car in the danger buffer moving slightly slower in the next lane.  However, the far left lane is wide open.  If the ego car were to slow down, change lanes, and then do so again, it would be much further ahead.  I decided against this as I ultimately weighted safety over efficiency.  
 
@@ -149,7 +142,9 @@ As you can see, my vehicle does not change lanes because there is a car in the d
 
 After figuring out how to smoothly apply acceleration using the method described in the Trajectory Generation section, it was fairly simple to limit the total tangential acceleration. As the trajectory in the direction of the frenet s vector is exactly that.  I started with a maximum tangential acceleration of 6m/s^2, and later dropped it to 5m/s^2 (half the total maximum acceleration of 10m/s^2).  Since each point sent to simulator represents 0.02 seconds, this meant only adding/subtracting .1m/s (5 * .02) to the speed each point.  Due to the latency inherent in measuring desired vs. actual kinematics, there is a bit of deviation from the total.  You can see by viewing the initial acceleration from 0 that the tangential acceleration (i.e. AccT) is pretty consistent at 5 m/s^2, with a momentary jump to 6 m/s^2:
 
-![alt text][image6] 
+<p align="center">
+  <img src="./doc/initial_accel.gif" >
+</p>
 
 Keeping this acceleration a constant also means the maximum tangential "jerk" (or change in acceleration) would be from 5m/s^2 to -5m/s^2, which would be 10 m/s^3.
 
@@ -157,17 +152,24 @@ Using the spline to generate smooth trajectories within lanes and for lane chang
 
 The first thing I noticed was that the vehicle was sometimes making a rapid double lane change:
 
-![alt text][image7] 
+<p align="center">
+  <img src="./doc/double.gif" >
+</p>
 
 This was caused by the vehicle quickly transitioning between the following states: Keep Lane -> Prepare Lane Change -> Lane Change -> Keep Lane -> Prepare Lane Change -> Lane Change.  To avoid such a rapid shift across lanes, I added a state after both of the Lane change states called "Lane Change Cool Down", and setup a "cool down" counter which I configured to 50 steps.  This forces the car to wait 50 steps before another lane change.  This resulted in the following improved behavior:
 
-![alt text][image8]
+<p align="center">
+  <img src="./doc/no_double.gif" >
+</p>
 
 The next thing I discovered was that the car began accelerating rapidly in the lane change state to reach the target speed of the new lane.  This caused up to a maximum of 5 m/s^2 tangential acceleration, which was then added to the normal acceleration of the lane change.  Thus, the combination of the two could often exceed the total maximum acceleration of 10 m/s^2.  To remedy this, I changed the acceleration for matching the new lane to happen in the "prepare lane change" state, and then forced the velocity to be constant for the actual "lane change" state. This removed a significant amount of tangential acceleration from the lane change equation.
 
-The final thing I found was that occasionally, the total normal acceleration could still exceed 10 m/s^2 using the existing spline approach.  This only seemed to occur if there was some normal acceleration caused by a curve in the road, combined with a lane change in the same direction, all happening at relatively high speed.  Here are a few captured examples
+The final thing I found was that occasionally, the total normal acceleration could still exceed 10 m/s^2 using the existing spline approach.  This only seemed to occur if there was some normal acceleration caused by a curve in the road, combined with a lane change in the same direction, all happening at relatively high speed.  Here are two captured examples
 
-![alt text][image9] ![alt text][image10]
+<p align="center">
+  <img src="./doc/max_acc.gif" >
+  <img src="./doc/max_acc2.gif" >
+</p>
 
 After dropping my target tangential acceleration from 6m/s^2 to 5m/s^2, the frequency of these sharply dropped.  Also, my initial horizon value was 30 meters, and increasing this to 45 meters reduced the frequency of this even more, but did not completely eliminate them, especially at the exact point where the course went from completely straight to a turn.  I was unable to come up with a way to guarantee this wouldn't happen without refactoring my entire approach to trajectory generation.  I assume using the JMT approach may have resolved it, but it did not seem worth the trade-off in complexity as the above situations became quite rare after the tweaks noted above.  However, after all the tweaks that will be discussed in the "Car does not have collisions" section below, this actually was one of the most common "incidents" I continued to observe. 
 
@@ -184,28 +186,39 @@ These methods are implemented throughout the behavior planning logic.  After the
 
 The first collision type I noticed was the ego car inexplicably accelerating into the back of another car it was following:
 
-![alt text][image13]
+<p align="center">
+  <img src="./doc/wrap_collision.gif" >
+</p>
+
 
 It took me a while to figure out why this phenomenon was occurring, but I noticed it happened at the exact same point on the track each time.  After debugging, I discovered it happened when reaching the end of the loop, causing the frenet "s" values to wrap back to 0.  This caused the difference between the car ahead and the ego car to be greater than 6000m, so the ego car accelerated, seeing nothing in its way until it was too late.  Since the cars that showed up in sensor fusion had a limit much smaller than 6000m, I added some logic that would correct for s value differences larger than 6000 by adding/subtracting the total track length from the s values in my prediction set.  That resolved this problem.
 
 The next collision types were more complex.  Most of them involved other vehicles _not_ moving at a constant speed, which was an assumption in predictions I took from the start.  Again, I was unable to avoid them entirely without major refactoring (ex. trying to calculate an acceleration value for the non-ego cars by keeping a history) but, they did lead to some fixes and tweaks in my planning logic.  Let's examine 4 captured collision clips:
 
 ##### Lane change collision type 1
-![alt text][image14]
+<p align="center">
+  <img src="./doc/lane_collision.gif" >
+</p>
 
 In this clip, the red car behind in the target lane briefly slows down, making it and it's predicted next state outside the danger buffer.  The ego car decides on a lane change, and then the car behind speeds up again, colliding with mine.  Since my lane choice was made before the other car's speed indicated it would collide with mine, there was no way to forsee the collision.   I increased the "danger buffer" from 8m to 10m to help avoid this in the future.
 
 ##### Lane change collision type 2
-![alt text][image15]
+<p align="center">
+  <img src="./doc/lane_collision2.gif" >
+</p>
 
-The car ahead in white slams on its breaks (likely exceeding my maximum allowable deceleration).  My cost function now determines the distance to the car ahead is shorter than it would be in the next lane, so it tries to avoid the collision by switching to the next lane.  A real driver may have slammed on its own brakes, but since this also trips the "incident" trigger for deceleration, I'm not sure my planner could have made a better choice given its follow distance.  It did appear though that the follow distance seemed closer than it should have been, and I discovered a bug in my follow speed calculation.  I noticed similar incidents during other close follow scenarios, so I also increased my follow buffer to 30m for safety. 
+The car ahead in white slams on its breaks (likely exceeding my maximum allowable deceleration).  My cost function now determines the distance to the car ahead is shorter than it would be in the next lane, so it tries to avoid the collision by switching to the next lane.  A real driver may have slammed on its own brakes, but since this also trips the "incident" trigger for deceleration, I'm not sure my planner could have made a better choice given its follow distance.  It did appear though that the follow distance seemed closer than it should have been, and I discovered a bug in my follow speed calculation that was causing me to match the vehicle speed ahead instead of keeping the required follow distance.  After this, I still noticed similar incidents during other close follow scenarios, so I increased my follow buffer to 30m for safety. 
 
 ##### Lane change collision type 3
-![alt text][image16]
+<p align="center">
+  <img src="./doc/lane_collision3.gif" >
+</p>
 
 This clip exposed a flaw in my decision making.  Before the lane change, the white car briefly slows down, causing the "congestion" of that lane to be less than the ego car's current lane, and the white car to drop out of the "danger buffer" as it's speed is suspected to be constant.  This triggers a lane change.  Then the red car ahead slows slightly, causing the ego car to enter the danger buffer, which then triggers the emergency braking, causing the car behind to hit the ego car.  The next clip is similar:
 
-![alt text][image17]
+<p align="center">
+  <img src="./doc/lane_collision4.gif" >
+</p>
 
 The ego car finds a faster lane, the car in the next lane brakes, the ego car applies emergency braking, and the car behind collides with it.  To account for this, I modified my danger _cost_ to look for cars in twice the danger buffer (i.e. 20m), while still only applying emergency braking within 10m.   Thus, the ego car should avoid lane changes if cars are within 20m, which means it should rarely need to apply emergency braking after a lane change.  
 

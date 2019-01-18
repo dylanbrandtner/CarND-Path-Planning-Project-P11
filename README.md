@@ -166,10 +166,14 @@ The next thing I discovered was that the car began accelerating rapidly in the l
 
 The final thing I found was that occasionally, the total normal acceleration could still exceed 10 m/s^2 using the existing spline approach.  This only seemed to occur if there was some normal acceleration caused by a curve in the road, combined with a lane change in the same direction, all happening at relatively high speed.  Here are two captured examples
 
-<p align="center">
-  <img src="./doc/max_acc.gif" >
-  <img src="./doc/max_acc2.gif" >
-</p>
+<div class="row">
+  <div class="column">
+    <img src="./doc/max_acc.gif" >
+  </div>
+  <div class="column">
+    <img src="./doc/max_acc2.gif">
+  </div>
+</div>
 
 After dropping my target tangential acceleration from 6m/s^2 to 5m/s^2, the frequency of these sharply dropped.  Also, my initial horizon value was 30 meters, and increasing this to 45 meters reduced the frequency of this even more, but did not completely eliminate them, especially at the exact point where the course went from completely straight to a turn.  I was unable to come up with a way to guarantee this wouldn't happen without refactoring my entire approach to trajectory generation.  I assume using the JMT approach may have resolved it, but it did not seem worth the trade-off in complexity as the above situations became quite rare after the tweaks noted above.  However, after all the tweaks that will be discussed in the "Car does not have collisions" section below, this actually was one of the most common "incidents" I continued to observe. 
 

@@ -107,10 +107,10 @@ double lane_danger(const Vehicle & vehicle, const map<int, vector<Vehicle>> & pr
             ego_s = vehicle.s + vehicle.v*i + vehicle.a*i*i/2.0;
             //std::cout << "veh.lane: " << veh.lane << " veh.s: " << veh.s << " veh.v: " << veh.v << std::endl;
             if (veh.lane == lane) {
-                if (fabs(veh.s - ego_s) < vehicle.danger_buffer) 
+                if (fabs(veh.s - ego_s) < (vehicle.danger_buffer*2)) 
                 {
                     //std::cout << "vehicle found in danger buffer for lane " << lane << ", vehicle.s: " << vehicle.s << " veh.s: " << veh.s << std::endl;
-                    danger_val+= (vehicle.danger_buffer - fabs(veh.s - ego_s)); // add based on distance
+                    danger_val+= (vehicle.danger_buffer*2 - fabs(veh.s - ego_s)); // add based on distance
                 }
             }
         }

@@ -177,7 +177,7 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 #define HORIZON 45.0
 #define EGO_CAR_GOAL 6945.554
 #define TIME_PER_POINT .02
-#define BUFFER 25.0
+#define BUFFER 30.0
 #define LANE_CHANGE_COOLDOWN 50
 
 // Dylan: D val to Lane val translation functions
@@ -304,8 +304,9 @@ int main() {
 
           	json msgJson;
             
+             // Dylan: --------Prediction/Trajectory Gen/Planning------------
             
-            // Generate pred data
+            // PREDICTION: Generate predictions 
             map<int, vector<Vehicle>> predictions = {};
             for (int i = 0; i < sensor_fusion.size(); i++)
             {     
@@ -334,9 +335,22 @@ int main() {
                 predictions.insert(std::pair<int,vector<Vehicle>>(id,v.generate_predictions()));
             }
 
+            // BEHAVIOR PLANNING
+            // Update ego
+            ego_car.s = car_s;
+            ego_car.v = car_speed / SPEED_CONVERSION; 
+            //ego_car.a = ref_a;
+
+            // Get next state
+            vector<Vehicle> trajectory = ego_car.choose_next_state(predictions);
+            int end_lane = translate_lane_to_d_val(trajectory[1].lane);
             
-            // Dylan: --------Behavior planner start------------
-             
+            // Update for next state
+            ego_car.state = trajectory[1].state;
+            ego_car.lane = trajectory[1].lane;
+            ego_car.a = trajectory[1].a;
+            
+            // TRAJECTORY GENERATION
             // Generate point path
             vector<double> ptsx;
             vector<double> ptsy;
@@ -391,18 +405,6 @@ int main() {
                 ptss.push_back(ref_s - ref_v*TIME_PER_POINT);
                 ptss.push_back(ref_s);
             }
-            
-            
-            // Dylan: Update ego
-            ego_car.s = car_s;
-            ego_car.v = car_speed / SPEED_CONVERSION; 
-            //ego_car.a = ref_a;
-            
-            //std::cout << "state=" <<  ego_car.state << " lane=" <<  ego_car.lane << std::endl;
-            
-            // Trajectory generation
-            vector<Vehicle> trajectory = ego_car.choose_next_state(predictions);
-            int end_lane = translate_lane_to_d_val(trajectory[1].lane);
             
             // Add horizon points
             vector<double> next_wp0 = getXY(car_s+HORIZON,end_lane,map_waypoints_s, map_waypoints_x, map_waypoints_y);
@@ -497,10 +499,6 @@ int main() {
             {
                 std::cout << "Total Acceleration Exceeds limits! Measured Acceleration=" <<  total_accel << std::endl;
             }*/
-
-            ego_car.state = trajectory[1].state;
-            ego_car.lane = trajectory[1].lane;
-            ego_car.a = trajectory[1].a;
             
             /* Debug  
             for (int i = 0; i < next_x_vals.size(); i++)
@@ -511,7 +509,7 @@ int main() {
               */
           
 
-            // Dylan: --------Behavior planner end------------
+            // Dylan: --------End of Prediction/Trajectory Gen/Planning------------
             
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;

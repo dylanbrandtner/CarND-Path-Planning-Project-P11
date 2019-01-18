@@ -25,7 +25,9 @@ In this project, I implemented a path planner in C++ to navigate through traffic
 
 ![alt text][image1]
 
-The green line represents the current planned trajectory for the car sent from the path planner logic to the simulator.  The speed limit is 50mph, so to avoid exceeding this, the target speed is set to 47mph.  As you can see, the car navigates traffic until it can drive at it's target speed again. 
+The green line represents the current planned trajectory for the car sent from the path planner logic to the simulator.  The speed limit is 50mph, so to avoid exceeding this, the target speed is set to 47mph.  As you can see, the car navigates traffic until it can drive at it's target speed again.  
+
+Using my final planning logic, I was able to travel over 62 miles without incident.
 
 ### Goals
 In this project your goal is to safely navigate around a virtual highway with other traffic that is driving +-10 MPH of the 50 MPH speed limit. You will be provided the car's localization and sensor fusion data, there is also a sparse map list of waypoints around the highway. The car should try to go as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible, note that other cars will try to change lanes too. The car should avoid hitting other cars at all cost as well as driving inside of the marked road lanes at all times, unless going from one lane to another. The car should be able to make one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Also the car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 10 m/s^3.
@@ -164,7 +166,7 @@ The final thing I found was that occasionally, the total normal acceleration cou
 
 ![alt text][image9] ![alt text][image10]
 
-After dropping my target tangential acceleration from 6m/s^2 to 5m/s^2, the frequency of these sharply dropped.  Also, my initial horizon value was 30 meters, and increasing this to 45 meters reduced the frequency of this even more, but did not completely eliminate them, especially for the sharpest turns on the course.  I was unable to come up with a way to guarantee this wouldn't happen without refactoring my entire approach to trajectory generation.  I assume using the JMT approach may have resolved it, but it did not seem worth the trade-off in complexity as the above situations became quite rare after the tweaks noted above.  However, after all the tweaks that will be discussed in the "Car does not have collisions" section below, this actually was one of the most common "incidents" I continued to observe. 
+After dropping my target tangential acceleration from 6m/s^2 to 5m/s^2, the frequency of these sharply dropped.  Also, my initial horizon value was 30 meters, and increasing this to 45 meters reduced the frequency of this even more, but did not completely eliminate them, especially at the exact point where the course went from completely straight to a turn.  I was unable to come up with a way to guarantee this wouldn't happen without refactoring my entire approach to trajectory generation.  I assume using the JMT approach may have resolved it, but it did not seem worth the trade-off in complexity as the above situations became quite rare after the tweaks noted above.  However, after all the tweaks that will be discussed in the "Car does not have collisions" section below, this actually was one of the most common "incidents" I continued to observe. 
 
 #### Car does not have collisions
 
@@ -181,29 +183,32 @@ The first collision type I noticed was the ego car inexplicably accelerating int
 
 ![alt text][image13]
 
-It took me a while to figure out why this phenomenon was occurring, but I noticed it happened at the exact same point on the track each time.  After debugging, I discovered it happened when reaching the end of the loop, causing the frenet "s" values to wrap back to 0.  This caused the difference between the car ahead and the ego car to be greater than 6000m, so the ego car accelerated, seeing nothing in its way until it was too late.  Since the cars that showed up in sensor fusion had a limit much smaller than 6000m, I added some logic that would correct for huge s value differences by adding/subtracting the total track length from the s values in my prediction set.  This resolved this problem.
+It took me a while to figure out why this phenomenon was occurring, but I noticed it happened at the exact same point on the track each time.  After debugging, I discovered it happened when reaching the end of the loop, causing the frenet "s" values to wrap back to 0.  This caused the difference between the car ahead and the ego car to be greater than 6000m, so the ego car accelerated, seeing nothing in its way until it was too late.  Since the cars that showed up in sensor fusion had a limit much smaller than 6000m, I added some logic that would correct for s value differences larger than 6000 by adding/subtracting the total track length from the s values in my prediction set.  That resolved this problem.
 
-The next collision types were more complex.  Most of them involved other vehicles _not_ moving at a constant speed, which was an assumption in predictions I took from the start.  However, they also lead to some fixes and tweaks in my planning logic.  Let's examine 4 captured collision clips:
+The next collision types were more complex.  Most of them involved other vehicles _not_ moving at a constant speed, which was an assumption in predictions I took from the start.  Again, I was unable to avoid them entirely without major refactoring (ex. trying to calculate an acceleration value for the non-ego cars by keeping a history) but, they did lead to some fixes and tweaks in my planning logic.  Let's examine 4 captured collision clips:
 
+##### Lane change collision type 1
 ![alt text][image14]
 
 In this clip, the red car behind in the target lane briefly slows down, making it and it's predicted next state outside the danger buffer.  The ego car decides on a lane change, and then the car behind speeds up again, colliding with mine.  Since my lane choice was made before the other car's speed indicated it would collide with mine, there was no way to forsee the collision.   I increased the "danger buffer" from 8m to 10m to help avoid this in the future.
 
+##### Lane change collision type 2
 ![alt text][image15]
 
 The car ahead in white slams on its breaks (likely exceeding my maximum allowable deceleration).  My cost function now determines the distance to the car ahead is shorter than it would be in the next lane, so it tries to avoid the collision by switching to the next lane.  A real driver may have slammed on its own brakes, but since this also trips the "incident" trigger for deceleration, I'm not sure my planner could have made a better choice given its follow distance.  It did appear though that the follow distance seemed closer than it should have been, and I discovered a bug in my follow speed calculation.  I noticed similar incidents during other close follow scenarios, so I also increased my follow buffer to 30m for safety. 
 
+##### Lane change collision type 3
 ![alt text][image16]
 
-This exposed a flaw in my decision making.  Before the lane change, the white car briefly slows down, causing the "congestion" of that lane to be less than the ego car's current lane, and the white car to drop out of the "danger buffer" as it's speed is suspected to be constant.  This triggers a lane change.  Then the red car ahead slows slightly, causing the ego car to enter the danger buffer, which then triggers the emergency braking, causing the car behind to hit the ego car.  The next clip is similar:
+This clip exposed a flaw in my decision making.  Before the lane change, the white car briefly slows down, causing the "congestion" of that lane to be less than the ego car's current lane, and the white car to drop out of the "danger buffer" as it's speed is suspected to be constant.  This triggers a lane change.  Then the red car ahead slows slightly, causing the ego car to enter the danger buffer, which then triggers the emergency braking, causing the car behind to hit the ego car.  The next clip is similar:
 
 ![alt text][image17]
 
-The ego car finds a faster lane, the car in the next lane brakes, the ego car applies emergency braking, and the car behind collides with it.  To account for this, I modified my "danger" cost to look for cars in twice the danger buffer (i.e. 20m), while still keeping the emergency braking buffer at 10m.   Thus, the ego car should avoid lane changes if cars are within 20m, which means it should rarely need to apply emergency braking after a lane change.  
+The ego car finds a faster lane, the car in the next lane brakes, the ego car applies emergency braking, and the car behind collides with it.  To account for this, I modified my danger _cost_ to look for cars in twice the danger buffer (i.e. 20m), while still only applying emergency braking within 10m.   Thus, the ego car should avoid lane changes if cars are within 20m, which means it should rarely need to apply emergency braking after a lane change.  
 
-I did not observe this type of incident after these tweaks, however, as noted in the "The car is able to change lanes" this impacted my overall efficiency (dropping my average speed from 45.5mph to 43.2mph over 1 hour of measurement).  This, however, seemed like a worthwhile trade-off.
+I did not observe these types of incidents after all these tweaks.  However, as noted in the "The car is able to change lanes," this impacted my overall efficiency (dropping my average speed from 45.5mph to 43.2mph over 1 hour of measurement).  This, however, seemed like a worthwhile trade-off.
 
-The remaining collisions I observed typically felt outside of my control, like cars side swiping me, or rapid deceleration without a chance to change lanes to avoid it.   
+The remaining collisions I observed typically felt outside of my control, like cars side swiping me, or rapid deceleration without a chance to change lanes to avoid it.  
 
 ### Reflection
 

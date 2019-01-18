@@ -9,7 +9,7 @@ In this project, I implemented a path planner in C++ to navigate through traffic
 
 The green line represents the current planned trajectory for the car sent from the path planner logic to the simulator.  The speed limit is 50mph, so to avoid exceeding this, the target speed is set to 47mph.  As you can see, the car navigates traffic until it can drive at it's target speed again.  
 
-Using my final planning logic, I was able to travel over 62 miles without incident.
+Using my final planning logic, I was able to travel over 70 miles without incident.
 
 ### Goals
 In this project the goal is to safely navigate around a virtual highway with other traffic that is driving +-10 MPH of the 50 MPH speed limit. You will be provided the car's localization and sensor fusion data, there is also a sparse map list of waypoints around the highway. The car should try to go as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible, note that other cars will try to change lanes too. The car should avoid hitting other cars at all cost as well as driving inside of the marked road lanes at all times, unless going from one lane to another. The car should be able to make one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Also the car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 10 m/s^3.
@@ -88,7 +88,7 @@ You can download the Term3 Simulator which contains the Path Planning Project fr
 
 #### The car is able to drive at least 4.32 miles without incident
 
-This was easily achieved early on, but I wanted to see how far I could get. After all the tweaks I made (which will be described in more detail below), my longest run was was 62.49 miles:
+This was easily achieved early on, but I wanted to see how far I could get. After all the tweaks I made (which will be described in more detail below), my longest run was was 70.43 miles:
 
 <p align="center">
   <img src="./doc/best.PNG" >

@@ -1,7 +1,7 @@
 #  Path Planning Project
 
 ## Project Introduction
-In this project, I implemented a path planner in C++ to navigate through traffic around a 6946m highway loop. The planner takes in current trajectory information (ex. position, speed, yaw) and "sensor fusion" data, which is the same trajectory information for surrounding cars.  It then determines the best trajectory based on the current and predicted states of all cars by using a cost function, which is tuned to avoid accidents and travel at the maximum safe speed.  It then generates a smooth trajectory for my car (aka. the "ego" car) using an open source [spline implementation](http://kluge.in-chemnitz.de/opensource/spline/).  In the project simulator, the result looks like this (video is at 3x speed due to gif size limitations):
+In this project, I implemented a path planner in C++ to navigate through traffic around a 6946m highway loop. The planner takes in current trajectory information (ex. position, speed, yaw) and "sensor fusion" data, which is the same trajectory information for surrounding cars.  It then determines the best trajectory based on the current and predicted states of all cars by using a cost function, which is tuned to avoid accidents and travel at the maximum safe speed.  It then generates a smooth trajectory for my car (aka. the "ego" car) using an open source [spline implementation](http://kluge.in-chemnitz.de/opensource/spline/).  In the project simulator, the result looks like this (video is at 3x speed due to GIF size limitations):
 
 <p align="center">
   <img src="./doc/full_nav3x.gif" title="Navigation at 3x Speed" style="display:block;" width="200%" height="200%" >
@@ -20,7 +20,7 @@ Later I will walk through how I met each rubric requirement, but first, I will d
 
 ### Prediction
 
-On a highway, vehicle prediction can be vastly simplified if one basic assumption is taken: All other vehicles are traveling at a constant speed. In practice (and even in the simulator it turned out), this is not actually true, but for the purposes of this exercise, it was reasonable trade-off as long as certain safety precautions are taken in the behavior planning phase.  With this assumption, to generate predictions, we simply take the position and speed of all vehicles found by sensor fusion, and decide how many points ahead to predict.  I chose only 1 second ahead of the current point.  The position of that point was calculated by simply adding the velocity to the previous position.  Prediction data is generated in `main.cpp` between lines 310-336.
+On a highway, vehicle prediction can be vastly simplified if one basic assumption is taken: All other vehicles are traveling at a constant speed. In practice (and even in the simulator it turned out), this is not actually true, but for the purposes of this exercise, it was a reasonable trade-off as long as certain safety precautions were taken in the behavior planning phase.  With this assumption, to generate predictions, we simply take the position and speed of all vehicles found by sensor fusion, and decide how many points ahead to predict.  I chose only 1 second ahead of the current point.  The position of that point was calculated by simply adding the velocity to the previous position.  Prediction data is generated in `main.cpp` between lines 310-336.
 
 ### Behavior planning
 
@@ -39,7 +39,7 @@ The Vehicle class uses the cost functions in `cost.cpp` to determine when/if it 
 | Lane Congestion |  10^5 | Amount of vehicles within twice the vehicle "buffer" (30m)     |
 | Lane Danger     |  10^8 | How close we are to vehicles within "danger buffer" (10m)      |
 
-Once a state is chosen, the planner uses this determine the desired lane, and desired speed.  The desired speed is either the target speed (which is set to 47mph to avoid exceeding the speed limit), or the speed that will cause us to keep the desired "buffer" (25m) from the car ahead in that lane. The desired lane and speed is sent to the trajectory generation.  
+Once a state is chosen, the planner uses this determine the desired lane, and desired speed.  The desired speed is either the target speed (which is set to 47mph to avoid exceeding the speed limit), or the speed that will cause us to keep the desired "buffer" (30m) from the car ahead in that lane. The desired lane and speed is sent to the trajectory generation.  
 
 ### Trajectory generation
 
@@ -96,7 +96,7 @@ This was easily achieved early on, but I wanted to see how far I could get. Afte
 
 #### The car drives according to the speed limit
 
-I set my initial target speed to 49mph, but occasional latency in adjusting the acceleration sometimes caused the car to go beyond the speed limit.  Thus, I adjust the target speed back down to 47 mph to avoid ever exceeding the 50mph limit: 
+I set my initial target speed to 49mph, but occasional latency in adjusting the acceleration sometimes caused the car to go beyond the speed limit.  Thus, I adjust the target speed down to 47 mph to avoid ever exceeding the 50mph limit: 
 
 <p align="center">
   <img src="./doc/target_speed.gif" >
@@ -112,7 +112,7 @@ Another aspect of this is the cost value I added for lane changes.  Although it 
 
 This was achieved during trajectory generation by setting the "horizon" waypoints in the initial spline to be in the desired lane: 
 
-This caused the lane change to occur before the first horizon point. 
+This causes the lane change to occur before the first horizon point: 
 
 <p align="center">
   <img src="./doc/change_lanes.gif" >
@@ -199,14 +199,14 @@ The next collision types were more complex.  Most of them involved other vehicle
   <img src="./doc/lane_collision.gif" >
 </p>
 
-In this clip, the red car behind in the middle lane briefly slows down, making it and it's predicted next state outside the danger buffer.  The ego car decides on a lane change, and then the red car speeds up again, colliding with the ego car.  Since the ego car's lane choice was made before the red car's speed indicated it would be dangerous, there was no way to forsee the collision.  Instead, I increased the "danger buffer" from 8m to 10m to make this situation less likely.
+In this clip, the red car behind in the middle lane briefly slows down, making it and it's predicted next state outside the danger buffer.  The ego car decides on a lane change, and then the red car speeds up again, colliding with the ego car.  Since the ego car's lane choice was made before the red car's speed indicated it would be dangerous, there was no way to foresee the collision while assuming a constant speed.  Instead, I increased the "danger buffer" from 8m to 10m to make this situation less likely.
 
 ##### Lane change collision type 2
 <p align="center">
   <img src="./doc/lane_collision_2.gif" >
 </p>
 
-The car ahead in white slams on its breaks (likely exceeding my maximum allowable deceleration).  My cost function now determines the distance to the car ahead is shorter than it would be in the next lane, so it tries to avoid the collision by switching to the next lane.  A real driver may have slammed on its own brakes, but since this also trips the "incident" trigger for deceleration, I'm not sure my planner could have made a better choice given its follow distance.  I did, however, notice that the follow distance was closer than I expected, and I discovered a bug in my follow speed calculation that was causing me to match the vehicle speed ahead instead of keeping the required follow distance.  After this, I still noticed a few similar incidents during close follow scenarios, so I increased my follow buffer to 30m for additional safety. 
+In this clip, the car ahead in white slams on its breaks (likely exceeding my maximum allowable deceleration).  My cost function now determines the distance to the car ahead is shorter than it would be in the next lane, so it tries to avoid the collision by switching to the next lane.  A real driver may have slammed on its own brakes, but since this also trips the "incident" trigger for deceleration, I'm not sure my planner could have made a better choice given its follow distance.  I did, however, notice that the follow distance was closer than I expected, and I discovered a bug in my follow speed calculation that was causing me to match the vehicle speed ahead instead of keeping the required follow distance.  After this, I still noticed a few similar incidents during close follow scenarios, so I increased my follow buffer to 30m for additional safety. 
 
 ##### Lane change collision type 3
 <p align="center">
@@ -227,5 +227,5 @@ The remaining collisions I observed mostly felt outside of my control, such as c
 
 ### Reflection
 
-The trajectory generation portion was quite frustrating as the suggested approach (using the spline) was sparsely described.  I wish there had been a full lesson describing this approach, along with suggestions on how to avoid exceeding the maximum normal acceleration during a lane change on a turn.  Beyond that, the rest of the behavior planning exercise was extremely interesting, and overall this was one of the most rewarding projects of the course thus far.  Tinkering with cost functions and their weights, and then seeing the impacts of that in the choices the car made was very satisfying. I was surprised at how well my simple planner was able to function, despite my simplifying assumptions and the erratically simulated cars on the road.  With some other assumptions that could made about real world drivers (i.e. faster cars in left lane, most cars driving similar speeds, other cars also avoid collisions), relaxation on the jerk limits for safety (i.e it's acceptable to slam on the breaks to avoid a collision), and some improved prediction logic (i.e. accounting for other car's acceleration), the basic structure of this planner felt like what a real self-driving car might use on the highway.  
+The trajectory generation portion was quite frustrating as the suggested approach (using the spline) was sparsely described in the project materials.  I wish there had been a full lesson describing this approach, along with suggestions on how to avoid exceeding the maximum normal acceleration during a lane change on a turn.  Beyond that, the rest of the behavior planning exercise was extremely interesting, and overall this was one of the most rewarding projects of the course thus far.  Tinkering with cost functions and their weights, and then seeing the impacts of that in the choices the car made was very satisfying. I was surprised at how well my simple planner was able to function, despite my assumptions and the erratically simulated cars on the road.  With some other assumptions that could made about real world drivers (i.e. faster cars in left lane, most cars driving similar speeds, other cars also do their best to avoid collisions, etc.), relaxation of the jerk limits for safety critical scenarios (i.e it's acceptable to slam on the breaks to avoid a collision), and some improved prediction logic (i.e. accounting for other car's acceleration), the concepts behind this planner felt like what a real self-driving car might use on the highway.  
 
